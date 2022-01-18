@@ -7,26 +7,26 @@ import './interfaces/IAthleteXRouter.sol';
 import './libraries/AthleteXLibrary.sol';
 import './libraries/SafeMath.sol';
 import './interfaces/IERC20.sol';
-import './interfaces/IWAVAX.sol';
+import './interfaces/IAX.sol';
 
 contract AthleteXRouter is IAthleteXRouter {
     using SafeMath for uint;
 
     address public immutable override factory;
-    address public immutable override WAVAX;
+    address public immutable override AX;
 
     modifier ensure(uint deadline) {
         require(deadline >= block.timestamp, 'AthleteXRouter: EXPIRED');
         _;
     }
 
-    constructor(address _factory, address _WAVAX) public {
+    constructor(address _factory, address _AX) public {
         factory = _factory;
-        WAVAX = _WAVAX;
+        AX = _AX;
     }
 
     receive() external payable {
-        assert(msg.sender == WAVAX); // only accept AVAX via fallback from the WAVAX contract
+        assert(msg.sender == AX); // only accept AVAX via fallback from the AX contract
     }
 
     // **** ADD LIQUIDITY ****
@@ -84,16 +84,16 @@ contract AthleteXRouter is IAthleteXRouter {
     ) external virtual override payable ensure(deadline) returns (uint amountToken, uint amountAVAX, uint liquidity) {
         (amountToken, amountAVAX) = _addLiquidity(
             token,
-            WAVAX,
+            AX,
             amountTokenDesired,
             msg.value,
             amountTokenMin,
             amountAVAXMin
         );
-        address pair = AthleteXLibrary.pairFor(factory, token, WAVAX);
+        address pair = AthleteXLibrary.pairFor(factory, token, AX);
         TransferHelper.safeTransferFrom(token, msg.sender, pair, amountToken);
-        IWAVAX(WAVAX).deposit{value: amountAVAX}();
-        assert(IWAVAX(WAVAX).transfer(pair, amountAVAX));
+        IAX(AX).deposit{value: amountAVAX}();
+        assert(IAX(AX).transfer(pair, amountAVAX));
         liquidity = IAthleteXPair(pair).mint(to);
         // refund dust AVAX, if any
         if (msg.value > amountAVAX) TransferHelper.safeTransferAVAX(msg.sender, msg.value - amountAVAX);
@@ -127,7 +127,7 @@ contract AthleteXRouter is IAthleteXRouter {
     ) public virtual override ensure(deadline) returns (uint amountToken, uint amountAVAX) {
         (amountToken, amountAVAX) = removeLiquidity(
             token,
-            WAVAX,
+            AX,
             liquidity,
             amountTokenMin,
             amountAVAXMin,
@@ -135,7 +135,7 @@ contract AthleteXRouter is IAthleteXRouter {
             deadline
         );
         TransferHelper.safeTransfer(token, to, amountToken);
-        IWAVAX(WAVAX).withdraw(amountAVAX);
+        IAX(AX).withdraw(amountAVAX);
         TransferHelper.safeTransferAVAX(to, amountAVAX);
     }
     function removeLiquidityWithPermit(
@@ -162,7 +162,7 @@ contract AthleteXRouter is IAthleteXRouter {
         uint deadline,
         bool approveMax, uint8 v, bytes32 r, bytes32 s
     ) external virtual override returns (uint amountToken, uint amountAVAX) {
-        address pair = AthleteXLibrary.pairFor(factory, token, WAVAX);
+        address pair = AthleteXLibrary.pairFor(factory, token, AX);
         uint value = approveMax ? uint(-1) : liquidity;
         IAthleteXPair(pair).permit(msg.sender, address(this), value, deadline, v, r, s);
         (amountToken, amountAVAX) = removeLiquidityAVAX(token, liquidity, amountTokenMin, amountAVAXMin, to, deadline);
@@ -179,7 +179,7 @@ contract AthleteXRouter is IAthleteXRouter {
     ) public virtual override ensure(deadline) returns (uint amountAVAX) {
         (, amountAVAX) = removeLiquidity(
             token,
-            WAVAX,
+            AX,
             liquidity,
             amountTokenMin,
             amountAVAXMin,
@@ -187,7 +187,7 @@ contract AthleteXRouter is IAthleteXRouter {
             deadline
         );
         TransferHelper.safeTransfer(token, to, IERC20(token).balanceOf(address(this)));
-        IWAVAX(WAVAX).withdraw(amountAVAX);
+        IAX(AX).withdraw(amountAVAX);
         TransferHelper.safeTransferAVAX(to, amountAVAX);
     }
     function removeLiquidityAVAXWithPermitSupportingFeeOnTransferTokens(
@@ -199,7 +199,7 @@ contract AthleteXRouter is IAthleteXRouter {
         uint deadline,
         bool approveMax, uint8 v, bytes32 r, bytes32 s
     ) external virtual override returns (uint amountAVAX) {
-        address pair = AthleteXLibrary.pairFor(factory, token, WAVAX);
+        address pair = AthleteXLibrary.pairFor(factory, token, AX);
         uint value = approveMax ? uint(-1) : liquidity;
         IAthleteXPair(pair).permit(msg.sender, address(this), value, deadline, v, r, s);
         amountAVAX = removeLiquidityAVAXSupportingFeeOnTransferTokens(
@@ -257,11 +257,11 @@ contract AthleteXRouter is IAthleteXRouter {
         ensure(deadline)
         returns (uint[] memory amounts)
     {
-        require(path[0] == WAVAX, 'AthleteXRouter: INVALID_PATH');
+        require(path[0] == AX, 'AthleteXRouter: INVALID_PATH');
         amounts = AthleteXLibrary.getAmountsOut(factory, msg.value, path);
         require(amounts[amounts.length - 1] >= amountOutMin, 'AthleteXRouter: INSUFFICIENT_OUTPUT_AMOUNT');
-        IWAVAX(WAVAX).deposit{value: amounts[0]}();
-        assert(IWAVAX(WAVAX).transfer(AthleteXLibrary.pairFor(factory, path[0], path[1]), amounts[0]));
+        IAX(AX).deposit{value: amounts[0]}();
+        assert(IAX(AX).transfer(AthleteXLibrary.pairFor(factory, path[0], path[1]), amounts[0]));
         _swap(amounts, path, to);
     }
     function swapTokensForExactAVAX(uint amountOut, uint amountInMax, address[] calldata path, address to, uint deadline)
@@ -271,14 +271,14 @@ contract AthleteXRouter is IAthleteXRouter {
         ensure(deadline)
         returns (uint[] memory amounts)
     {
-        require(path[path.length - 1] == WAVAX, 'AthleteXRouter: INVALID_PATH');
+        require(path[path.length - 1] == AX, 'AthleteXRouter: INVALID_PATH');
         amounts = AthleteXLibrary.getAmountsIn(factory, amountOut, path);
         require(amounts[0] <= amountInMax, 'AthleteXRouter: EXCESSIVE_INPUT_AMOUNT');
         TransferHelper.safeTransferFrom(
             path[0], msg.sender, AthleteXLibrary.pairFor(factory, path[0], path[1]), amounts[0]
         );
         _swap(amounts, path, address(this));
-        IWAVAX(WAVAX).withdraw(amounts[amounts.length - 1]);
+        IAX(AX).withdraw(amounts[amounts.length - 1]);
         TransferHelper.safeTransferAVAX(to, amounts[amounts.length - 1]);
     }
     function swapExactTokensForAVAX(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline)
@@ -288,14 +288,14 @@ contract AthleteXRouter is IAthleteXRouter {
         ensure(deadline)
         returns (uint[] memory amounts)
     {
-        require(path[path.length - 1] == WAVAX, 'AthleteXRouter: INVALID_PATH');
+        require(path[path.length - 1] == AX, 'AthleteXRouter: INVALID_PATH');
         amounts = AthleteXLibrary.getAmountsOut(factory, amountIn, path);
         require(amounts[amounts.length - 1] >= amountOutMin, 'AthleteXRouter: INSUFFICIENT_OUTPUT_AMOUNT');
         TransferHelper.safeTransferFrom(
             path[0], msg.sender, AthleteXLibrary.pairFor(factory, path[0], path[1]), amounts[0]
         );
         _swap(amounts, path, address(this));
-        IWAVAX(WAVAX).withdraw(amounts[amounts.length - 1]);
+        IAX(AX).withdraw(amounts[amounts.length - 1]);
         TransferHelper.safeTransferAVAX(to, amounts[amounts.length - 1]);
     }
     function swapAVAXForExactTokens(uint amountOut, address[] calldata path, address to, uint deadline)
@@ -306,11 +306,11 @@ contract AthleteXRouter is IAthleteXRouter {
         ensure(deadline)
         returns (uint[] memory amounts)
     {
-        require(path[0] == WAVAX, 'AthleteXRouter: INVALID_PATH');
+        require(path[0] == AX, 'AthleteXRouter: INVALID_PATH');
         amounts = AthleteXLibrary.getAmountsIn(factory, amountOut, path);
         require(amounts[0] <= msg.value, 'AthleteXRouter: EXCESSIVE_INPUT_AMOUNT');
-        IWAVAX(WAVAX).deposit{value: amounts[0]}();
-        assert(IWAVAX(WAVAX).transfer(AthleteXLibrary.pairFor(factory, path[0], path[1]), amounts[0]));
+        IAX(AX).deposit{value: amounts[0]}();
+        assert(IAX(AX).transfer(AthleteXLibrary.pairFor(factory, path[0], path[1]), amounts[0]));
         _swap(amounts, path, to);
         // refund dust AVAX, if any
         if (msg.value > amounts[0]) TransferHelper.safeTransferAVAX(msg.sender, msg.value - amounts[0]);
@@ -365,10 +365,10 @@ contract AthleteXRouter is IAthleteXRouter {
         payable
         ensure(deadline)
     {
-        require(path[0] == WAVAX, 'AthleteXRouter: INVALID_PATH');
+        require(path[0] == AX, 'AthleteXRouter: INVALID_PATH');
         uint amountIn = msg.value;
-        IWAVAX(WAVAX).deposit{value: amountIn}();
-        assert(IWAVAX(WAVAX).transfer(AthleteXLibrary.pairFor(factory, path[0], path[1]), amountIn));
+        IAX(AX).deposit{value: amountIn}();
+        assert(IAX(AX).transfer(AthleteXLibrary.pairFor(factory, path[0], path[1]), amountIn));
         uint balanceBefore = IERC20(path[path.length - 1]).balanceOf(to);
         _swapSupportingFeeOnTransferTokens(path, to);
         require(
@@ -388,14 +388,14 @@ contract AthleteXRouter is IAthleteXRouter {
         override
         ensure(deadline)
     {
-        require(path[path.length - 1] == WAVAX, 'AthleteXRouter: INVALID_PATH');
+        require(path[path.length - 1] == AX, 'AthleteXRouter: INVALID_PATH');
         TransferHelper.safeTransferFrom(
             path[0], msg.sender, AthleteXLibrary.pairFor(factory, path[0], path[1]), amountIn
         );
         _swapSupportingFeeOnTransferTokens(path, address(this));
-        uint amountOut = IERC20(WAVAX).balanceOf(address(this));
+        uint amountOut = IERC20(AX).balanceOf(address(this));
         require(amountOut >= amountOutMin, 'AthleteXRouter: INSUFFICIENT_OUTPUT_AMOUNT');
-        IWAVAX(WAVAX).withdraw(amountOut);
+        IAX(AX).withdraw(amountOut);
         TransferHelper.safeTransferAVAX(to, amountOut);
     }
 
